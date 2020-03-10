@@ -34,11 +34,7 @@ if ($command[0]=="=REFRESH") {
       //     print "\n";
         //   	print "CoolBot2" . "\n";
 
-								 
-   $tquery = "select company_id from features_company_members where member_email = '$username'";
-//echo "$tquery";
-$tresult = $conn->query($tquery)or trigger_error($conn->error."[$tquery]");
-
+								
 
           $querycts="SELECT * FROM userlist ORDER BY JoinedIMR DESC LIMIT 1";
 		$resultcts = $conn->query($querycts)or trigger_error($conn->error."[$querycts]");
@@ -749,7 +745,7 @@ $scores= "$scores $trackname $laptime $craft\nCHAT";
 }
 }
 
-mysql_close;
+
 $scores="$scores\n";
 return ($scores);
 }
