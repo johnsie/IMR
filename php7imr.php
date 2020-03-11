@@ -1,5 +1,5 @@
 <?php
-
+header('Content-Type: text/plain');
 
 include('db.php');
 
@@ -14,11 +14,13 @@ $chatrem   -= 30;			// HOW MANY SECONDS BEFORE CHAT IS REMOVED FROM THE DATABASE
 // GETTING THEIR IP
 $playerip = isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : $_SERVER['REMOTE_ADDR'];
 
-// DEBUG ERRORS WITH : $result = mysql_query("INSERT INTO debug (string) VALUES ('$_SERVER[QUERY_STRING]')",$db);
+// DEBUG ERRORS WITH : $result = _query("INSERT INTO debug (string) VALUES ('$_SERVER[QUERY_STRING]')");
 
 // DISECTING THE QUERY STRING FOR FUTURE USAGE
 //echo $_SERVER["QUERY_STRING"];
 $command = explode("%%", $_SERVER["QUERY_STRING"]);
+
+//$command[5]=rand(100,600);
 //print_r($command);
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // REFRESHING THE IMR                                                                                        //
@@ -27,7 +29,7 @@ $command = explode("%%", $_SERVER["QUERY_STRING"]);
 if ($command[0]=="=REFRESH") {
 	// UPDATE AND PRINT USERLIST
 	// STRIP - OFF OF THE USERID
-    $refreshid = split("-",$command[1]);
+    $refreshid = explode("-",$command[1]);
 		// CHECK IF THERE IS ANY NEED TO UPDATE THE USERLIST BY CHECKING THE TIMESMAMP OF THE LAST PERSON JOINED
 		// AGAINST THE LAST TIMESTAMP OF YOU REFRESHING THE USERLIST
 	//	print "USER 17 NEW\n";
@@ -51,7 +53,7 @@ if ($command[0]=="=REFRESH") {
 		if ($myrow = $result->fetch_array()) {
     		    // TELLS THE IMR TO ADD THIS CLIENT TO THE PLAYER LIST
             	print "USER $myrow[UserID] NEW\n";
-            	print "\n";
+           	print "\n";
             	print urldecode($myrow["UserName"]) . "\n";
     		} else {
     		    // TELLS THE IMR THERE IS NOBODY IN THIS CLIENT SLOT
@@ -196,7 +198,7 @@ if  ($agent)
 //exit;
 }
 
-//mysql_close();
+
 $ip =$_SERVER['REMOTE_ADDR'];
 #see if they are already in the players database
 
@@ -204,11 +206,16 @@ $ip =$_SERVER['REMOTE_ADDR'];
 #$query  = "SELECT name, subject, message FROM contact";
 
 #                   0          1           2         3   4      5     6     7    8       9
-$query = "SELECT playerIP FROM hoverplayers WHERE playerName='$command[5]'";
-$result = mysql_query($query);
+$query = "SELECT playerIP FROM hoverplayers WHERE playerName='{$command[5]}'";
+
+writeFile("debugger",$_SERVER["QUERY_STRING"]);
+
+$result =  $conn->query($query);
+if ($result)
+{	
 $messageCount= 0;
-$num_rows = mysql_num_rows($result);
-while($row = mysql_fetch_row($result))
+$num_rows = $result->num_rows;
+while($row = $result->fetch_array())
 {
 $playerID= $row[0];
 $playerName = $row[1];
@@ -217,7 +224,7 @@ $playerIP=  $row[2];
 
 }
 
-
+}
 #if the player has been regged before from this ip do nothing
 if ($num_rows < 1){
 
@@ -236,9 +243,9 @@ else
 //$reg="(nonreg.)";
 }
 // Insert a row of information into the table
-mysql_query("INSERT INTO hoverplayers
-(playerName,playerAgent,playerIP) VALUES('$command[5]$reg' , '$agent', '$ip') ") 
-or die(mysql_error()); 
+$conn->query("INSERT INTO hoverplayers
+(playerName,playerAgent,playerIP) VALUES('$command[5]$reg' , '$agent', '$ip') "); 
+
 
 
 
@@ -247,27 +254,31 @@ or die(mysql_error());
 
 
     // CHECK FOR OLD CLIENTS AND REMOVE THEM, ALSO STOPS IMR FILLING
-   	$result = mysql_query("DELETE FROM userlist WHERE TimeStamp<$timeout",$db);
+   	$result = $conn->query("DELETE FROM userlist WHERE TimeStamp<$timeout");
    	// CHECK FOR SAME NAME AND ADD A NUMBER ONTO THE END IF THERE IS A SAME NAME IN THE IMR
-   	$result = mysql_query("SELECT * FROM userlist WHERE UserName='$command[5]'",$db);
-   	if ($myrow = mysql_fetch_array($result)) {
+   	$result = $conn->query("SELECT * FROM userlist WHERE UserName='$command[5]'");
+  if ($result){
+  if ($myrow = $result->fetch_array()) {
   		do {
   		    $count++;
   		    $alteredcommand5 = $command[5] . $count;
-            $resultcheck = mysql_query("SELECT * FROM userlist WHERE UserName='$alteredcommand5'",$db);
-            if (($myrowcheck = mysql_fetch_array($resultcheck))==FALSE) {
+            $resultcheck =  $conn->query("SELECT * FROM userlist WHERE UserName='$alteredcommand5'");
+            if (($myrowcheck = $resultcheck->fetch_array())==FALSE) {
                 $UniqueName=TRUE;
             }
 		} while ($UniqueName==FALSE);
 		$command[5]=$alteredcommand5;
    	}
+}
 	// CHECK HOW MANY PEOPLE ARE IN THE IMR AND ASSIGN A UNIQUE USERID
 	do {
 	$UserID++;
-	$result = mysql_query("SELECT * FROM userlist WHERE UserID=$UserID",$db);
-    if ($myrow = mysql_fetch_array($result)==FALSE) {
+	$result = $conn->query("SELECT * FROM userlist WHERE UserID=$UserID");
+   if ($result){
+   if ($myrow =$result->fetch_array()==FALSE) {
         $OriginalID=TRUE;
     }
+   }
 	} while ($OriginalID==FALSE) ;
 	// GIVE AN ERROR IF THERE ARE ALREADY THE MAXIMUM AMOUNT OF CLIENTS IN THE ROOM
 	if ($UserID > $maxclient) {
@@ -278,8 +289,8 @@ or die(mysql_error());
 	print "SUCCESS\n";
 	print "USER_ID $UserID\n";
 	// RETRIEVE THE TIMESTAMP OF THE LAST MESSAGE ON THE IMR, SO THAT THE REFRESH COMMAND PICKS UP NEW MESSAGES
-	$resultmts = mysql_query("SELECT * FROM chat ORDER BY TimeStamp DESC",$db);
-    if ($myrowmts = mysql_fetch_array($resultmts)) {
+	$resultmts =  $conn->query("SELECT * FROM chat ORDER BY TimeStamp DESC");
+    if ($myrowmts = $resultmts->fetch_array()) {
         $MessageTimeStamp=$myrowmts["TimeStamp"];
     } else {
         // IF THE CHAT DATABASE IS EMPTY, IT GIVES THE MESSAGE TIMESTAMP A "1" VALUE
@@ -298,7 +309,7 @@ or die(mysql_error());
 				case 5: $ran="Are you ready ro rummmmmmble?"; break; 
 					case 6: $ran="Whats the craic?"; break; 
 	}
-   // $result = mysql_query("INSERT INTO chat (UserID,UserName,Message,TimeStamp) VALUES ('0','CoolBot','Hey $command[5] ($playerip) $ran',". time() .") ",$db);
+   // $result = $conn->query("INSERT INTO chat (UserID,UserName,Message,TimeStamp) VALUES ('0','CoolBot','Hey $command[5] ($playerip) $ran',". time() .") ");
 	// INSERT USER INTO DATABASE
 
 	
@@ -314,15 +325,15 @@ else
 //$reg="(nonreg.)";
 }
 
-	$result = mysql_query("INSERT INTO userlist (UserName,UserID,RegKey,Version,Key2,Key3,TimeStamp,MessageTimeStamp,JoinedIMR,PlayerListUpdate,GameListUpdate,StartedGame) VALUES ('$command[5]$reg','$UserID','$command[1]','$command[2]','$command[3]','$command[4]','". time() ."',$MessageTimeStamp,'". time() ."','". time() ."','1','1')",$db);
+	$result = $conn->query("INSERT INTO userlist (UserName,UserID,RegKey,Version,Key2,Key3,TimeStamp,MessageTimeStamp,JoinedIMR,PlayerListUpdate,GameListUpdate,StartedGame) VALUES ('$command[5]$reg','$UserID','$command[1]','$command[2]','$command[3]','$command[4]','". time() ."',$MessageTimeStamp,'". time() ."','". time() ."','1','1')");
 	
 	// DOES AN INITIAL PLAYER AND GAME LIST REFRESH TO UPDATE THE USERLIST
 	
 	// CHECKS IF ANY OF THE CLIENT SLOTS ARE TAKEN
     	for ( $clientcount=1; $clientcount <= $maxclient; $clientcount++) {
 		
-    	    $result = mysql_query("SELECT * FROM userlist WHERE UserID=$clientcount and TimeStamp>$timeout",$db);
-    		if ($myrow = mysql_fetch_array($result)) {
+    	    $result = $conn->query("SELECT * FROM userlist WHERE UserID=$clientcount and TimeStamp>$timeout");
+    		if ($myrow = $result->fetch_array()) {
     		    // TELLS THE IMR TO ADD THIS CLIENT TO THE PLAYER LIST
             	print "USER $myrow[UserID] NEW\n";
             	print "\n";
@@ -333,25 +344,25 @@ else
     		}
     	}
     	
-    // PRINT GAMES TO THE GAMES LIST
+    // PRINT GAMES TO THE GAMES LIST 
 
     	for ( $gamescount=1; $gamescount <= $maxgames; $gamescount++) {
-    	    $result = mysql_query("SELECT * FROM gamelist WHERE GameID=$gamescount",$db);
-    		if ($myrow = mysql_fetch_array($result)) {
+    	    $result =$conn->query("SELECT * FROM gamelist WHERE GameID=$gamescount");
+    		if ($myrow = $result->fetch_array()) {
     		    // COUNTS THE PLAYERS IN THE GAME
-    		    $resultpc = mysql_query("SELECT COUNT(*) AS PlayerCount FROM gameplayers WHERE GameID=$gamescount",$db);
-    		    $myrowpc = mysql_fetch_array($resultpc);
+    		    $resultpc = $conn->query("SELECT COUNT(*) AS PlayerCount FROM gameplayers WHERE GameID=$gamescount");
+    		    $myrowpc =$resultpc->fetch_array();
     		    // TELLS THE IMR TO ADD THIS GAME TO THE GAME LIST
             	print "GAME $myrow[GameID] NEW $myrow[UserID]\n";
             	print urldecode($myrow["GameName"]) . "\n";
             	print urldecode($myrow["Track"]) . "\n";
             	print "$myrow[GameIP]\n";
             	print "$myrow[Port] $myrow[Laps] $myrow[Weapons] $myrowpc[PlayerCount]\n";
-                $resultshowpl = mysql_query("SELECT * FROM gameplayers WHERE GameID=$gamescount ORDER BY JoinOrder",$db);
-            	if ($myrowshowpl = mysql_fetch_array($resultshowpl)) {
+                $resultshowpl = $conn->query("SELECT * FROM gameplayers WHERE GameID=$gamescount ORDER BY JoinOrder");
+            	if ($myrowshowpl = $resultshowpl->fetch_array()) {
             	    do {
             			print "$myrowshowpl[UserID] ";
-            	    } while ($myrowshowpl = mysql_fetch_array($resultshowpl));
+            	    } while ($myrowshowpl = $resultshowpl->fetch_array());
             	}
             	print "\n" ;
     		} else {
@@ -370,7 +381,7 @@ if (num_regrows<1){
 
 $address = $_SERVER['REMOTE_ADDR'];//Here you can specify the address you want to check ports
 $port = "80"; //Here you can specify the port you want to check from $address
-$checkport = fsockopen($address, $port, $errnum, $errstr, 2); //The 2 is the time of ping in secs
+//$checkport = fsockopen($address, $port, $errnum, $errstr, 2); //The 2 is the time of ping in secs
 
 //Here down you can put what to do when the port is closed
 if(!$checkport){
@@ -380,6 +391,7 @@ if(!$checkport){
 //And here, what you want to do when the port is open
      //  echo "The port ".$port." from ".$address." seems to be open."; //The msg echoed if port is open
 }
+
 
   print "CHAT\n". "--LATEST LAP TIMES--" ."\n";
 
@@ -407,20 +419,20 @@ $j= trim(preg_replace('/\s+/', ' ', $j));
 
 if ($command[0]=="=DEL_USER") {
 	// REMOVE THE CLIENT FROM THE IMR AS HE LEAVES
-	$leaveid = split("-",$command[1]);
-	$resultmts = mysql_query("SELECT * FROM userlist WHERE UserID=$leaveid[0]",$db);
-	$myrowmts = mysql_fetch_array($resultmts);
+	$leaveid = explode("-",$command[1]);
+	$resultmts = $conn->query("SELECT * FROM userlist WHERE UserID=$leaveid[0]");
+	$myrowmts = $resultmts->fetch_array();
 	// TELL THE ROOM HE HAS LEFT
-	$result = mysql_query("INSERT INTO chat (UserID,UserName,Message,TimeStamp) VALUES ('0','','$myrowmts[UserName] has left the IMR!',". time() .")",$db);
+	$result = $conn->query("INSERT INTO chat (UserID,UserName,Message,TimeStamp) VALUES ('0','','$myrowmts[UserName] has left the IMR!',". time() .")");
 	// REMOVE HIM FROM THE USERLIST
-  	$result = mysql_query("DELETE FROM userlist WHERE UserID='$leaveid[0]' LIMIT 1",$db);
+  	$result = $conn->query("DELETE FROM userlist WHERE UserID='$leaveid[0]' LIMIT 1");
   	// REMOVE HIM FROGAMEM ANY GAMES (BECAUSE WHEN YOU START A GAME, THEY ONLY LEAVE THE ROOM)
-  	$result = mysql_query("DELETE FROM gamelist WHERE UserID='$leaveid[0]-0'",$db);
+  	$result = $conn->query("DELETE FROM gamelist WHERE UserID='$leaveid[0]-0'");
 $ip =$_SERVER['REMOTE_ADDR'];
-    $resultvfv = mysql_query("DELETE FROM gamelist WHERE GameIP='$ip'",$db);
-    $resultb = mysql_query("DELETE FROM gameplayers WHERE UserID='$leaveid[0]-0'",$db);
+    $resultvfv = $conn->query("DELETE FROM gamelist WHERE GameIP='$ip'");
+    $resultb = $conn->query("DELETE FROM gameplayers WHERE UserID='$leaveid[0]-0'");
     // FORCES A RELOAD ON THE USERLIST AND GAMELIST (BECAUSE WHEN YOU START A GAME, THEY ONLY LEAVE THE ROOM)
-    $result = mysql_query("UPDATE userlist SET PlayerListUpdate=1, GameListUpdate=1",$db);
+    $result = $conn->query("UPDATE userlist SET PlayerListUpdate=1, GameListUpdate=1");
 	print "SUCCESS\n";
 }
 
@@ -430,27 +442,27 @@ $ip =$_SERVER['REMOTE_ADDR'];
 
 if ($command[0]=="=ADD_CHAT") {
     // STRIP - OFF OF THE USERID AND UPDATE THE TIMESTAMP
-    $addchatid = split("-",$command[1]);
-    $result = mysql_query("SELECT * FROM userlist WHERE UserID=$addchatid[0]",$db);
-    if ($myrow = mysql_fetch_array($result)) {
+    $addchatid = explode("-",$command[1]);
+    $result = $conn->query("SELECT * FROM userlist WHERE UserID=$addchatid[0]");
+    if ($myrow = $result->fetch_array()) {
         $UserName = $myrow["UserName"];
     }
     
 
 $msg=addslashes($command[2]);
 $msg =str_replace("%2f", "/", $msg);
-//@mysql_query("insert into privatemessages(recipient,message) values('$addchatid[0]','$msg')");
+//@$conn->query("insert into privatemessages(recipient,message) values('$addchatid[0]','$msg')");
 #see if there's any commands given	
 	if ($msg=="/mur")
 	{
-		@mysql_query("insert into privatemessages(recipient,message) values('$addchatid[0]','mong')");
+		$x= $conn->query("insert into privatemessages(recipient,message) values('$addchatid[0]','mong')");
 	}
 
 if ($msg=="/news")
 	{
 		$news = require("/opt/lampp/htdocs/martsart/rss2/bbc.php");
-//@mysql_query("insert into privatemessages(recipient,message) values('$addchatid[0]','mong')");
-@mysql_query("insert into privatemessages(recipient,message) values('$addchatid[0]','$news')");
+//@$conn->query("insert into privatemessages(recipient,message) values('$addchatid[0]','mong')");
+$x=$conn->query("insert into privatemessages(recipient,message) values('$addchatid[0]','$news')");
 print "CHAT\n--\n";
 
 	print "SUCCESS\n";
@@ -463,8 +475,8 @@ exit;
 if (strtolower($msg)=="hi")
 	{
 	
-//@mysql_query("insert into privatemessages(recipient,message) values('$addchatid[0]','mong')");
-@mysql_query("insert into privatemessages(recipient,message) values('$addchatid[0]','CoolBot» Well hello there, ". $UserName ."   ')");
+//@$conn->query("insert into privatemessages(recipient,message) values('$addchatid[0]','mong')");
+$x=$conn->query("insert into privatemessages(recipient,message) values('$addchatid[0]','CoolBot» Well hello there, ". $UserName ."   ')");
 print "CHAT\n--\n";
 
 	print "SUCCESS\n";
@@ -474,12 +486,12 @@ exit;
 
 if (strtolower($msg)=="no")
 	{
-	   $result = mysql_query("INSERT INTO chat (UserID,UserName,Message,TimeStamp) VALUES ('$command[1]','$UserName','". addslashes($command[2])."',". time() .")",$db);
+	   $result = $conn->query("INSERT INTO chat (UserID,UserName,Message,TimeStamp) VALUES ('$command[1]','$UserName','". addslashes($command[2])."',". time() .")");
 
 
 	
-//@mysql_query("insert into privatemessages(recipient,message) values('$addchatid[0]','mong')");
-@mysql_query("insert into privatemessages(recipient,message) values('$addchatid[0]','CoolBot» Ah go on go on go on   ')");
+//@$conn->query("insert into privatemessages(recipient,message) values('$addchatid[0]','mong')");
+$x=$conn->query("insert into privatemessages(recipient,message) values('$addchatid[0]','CoolBot» Ah go on go on go on   ')");
 print "CHAT\n--\n";
 
 	print "SUCCESS\n";
@@ -493,8 +505,8 @@ exit;
 if (strtolower($msg)=="What time is it?")
 	{
 	
-//@mysql_query("insert into privatemessages(recipient,message) values('$addchatid[0]','mong')");
-@mysql_query("insert into privatemessages(recipient,message) values('$addchatid[0]','CoolBot» Time you bought a watch, ". $UserName ."   ')");
+//@$conn->query("insert into privatemessages(recipient,message) values('$addchatid[0]','mong')");
+$x=$conn->query("insert into privatemessages(recipient,message) values('$addchatid[0]','CoolBot» Time you bought a watch, ". $UserName ."   ')");
 print "CHAT\n--\n";
 
 	print "SUCCESS\n";
@@ -506,9 +518,9 @@ exit;
 if ($msg=="/scores")
 	{
 $scores= showscores($conn);
-mysql_select_db($databasename,$db);
 
-@mysql_query("insert into privatemessages(recipient,message) values('$addchatid[0]','$scores')");
+
+$x=$conn->query("insert into privatemessages(recipient,message) values('$addchatid[0]','$scores')");
 print "CHAT\n--\n";
 
 	print "SUCCESS\n";
@@ -518,7 +530,7 @@ exit;
 
 
 // INSERT THE CHAT INTO THE DATABASE
-    $result = mysql_query("INSERT INTO chat (UserID,UserName,Message,TimeStamp) VALUES ('$command[1]','$UserName','". addslashes($command[2])."',". time() .")",$db);
+    $result = $conn->query("INSERT INTO chat (UserID,UserName,Message,TimeStamp) VALUES ('$command[1]','$UserName','". addslashes($command[2])."',". time() .")");
 
 
 	
@@ -540,13 +552,13 @@ if ($command[0]=="=ADD_GAME") {
 	// FIND A SUITABLE SLOT OUT OF THE AVAILABLE GAME SPACES AVAILABLE TO ADD THE GAME INTO
     do {
         $gamecount++;
-        $result = mysql_query("SELECT * FROM gamelist WHERE GameID=$gamecount",$db);
-    	if (($myrow = mysql_fetch_array($result))==FALSE) {
+        $result = $conn->query("SELECT * FROM gamelist WHERE GameID=$gamecount");
+    	if (($myrow =$result->fetch_array())==FALSE) {
     	    // IF THERE IS NO GAME IN THE $GAMECOUNT SLOT, IT WILL PUT THE CLIENTS GAME HERE
-    	    $resultgame = mysql_query("INSERT INTO gamelist (GameID,UserID,GameName,Track,Laps,Weapons,GameIP,Port) VALUES ('$gamecount','$command[1]','$command[2]','$command[3]','$command[4]','$command[5]','$playerip','$command[6]')",$db);
-    	    $resultgameplayers = mysql_query("INSERT INTO gameplayers (GameID,UserID,JoinOrder) VALUES ('$gamecount','$command[1]','1')",$db);
+    	    $resultgame = $conn->query("INSERT INTO gamelist (GameID,UserID,GameName,Track,Laps,Weapons,GameIP,Port) VALUES ('$gamecount','$command[1]','$command[2]','$command[3]','$command[4]','$command[5]','$playerip','$command[6]')");
+		$resultgameplayers = $conn->query("INSERT INTO gameplayers (GameID,UserID,JoinOrder) VALUES ('$gamecount','{$command[1]}','1')");
     	    // THIS TELLS THE GAMELIST TO UPDATE ON REFRESH
-    	    $result = mysql_query("UPDATE userlist SET StartedGame=".time()." WHERE UserID='$command[1]'",$db);
+    	    $result = $conn->query("UPDATE userlist SET StartedGame=".time()." WHERE UserID='{$command[1]}'");
 			print "SUCCESS\n";
 			print "GAME_ID $gamecount-$command[1]\n";
 			$gotgameslot=TRUE;
@@ -564,10 +576,10 @@ if ($command[0]=="=ADD_GAME") {
 
 if ($command[0]=="=DEL_GAME") {
 	// DELETES THE GAME FROM THE GAMELIST
-    $result = mysql_query("DELETE FROM gamelist WHERE GameID='$command[1]' and UserID='$command[2]' LIMIT 1",$db);
-    $result = mysql_query("DELETE FROM gameplayers WHERE GameID='$command[1]'",$db);
+    $result = $conn->query("DELETE FROM gamelist WHERE GameID='$command[1]' and UserID='$command[2]' LIMIT 1");
+    $result = $conn->query("DELETE FROM gameplayers WHERE GameID='$command[1]'");
     // TELLS THE CLIENT TO UPDATE HIS GAMELIST
-    $result = mysql_query("UPDATE userlist SET StartedGame=".time()." WHERE UserID='$command[2]'",$db);
+    $result = $conn->query("UPDATE userlist SET StartedGame=".time()." WHERE UserID='$command[2]'");
     print "SUCCESS\n";
 }
 
@@ -578,14 +590,14 @@ if ($command[0]=="=DEL_GAME") {
 if ($command[0]=="=JOIN_GAME") {
 	// ASSIGN A PLAYER A SLOT IN THE GAME FROM 2-9 (JOINORDER IS SIMPLY FOR DISPLAY PURPOSES ON THE PLAYERLIST)
 	for ($playersingame=2; $playersingame<$maxplayersingame; $playersingame++) {
-	$resultmts = mysql_query("SELECT * FROM gameplayers WHERE JoinOrder=$playersingame",$db);
-		if (($myrow = mysql_fetch_array($result))==FALSE) {
+	$resultmts = $conn->query("SELECT * FROM gameplayers WHERE JoinOrder=$playersingame");
+		if (($myrow = $result->fetch_array())==FALSE) {
 		    // INSERT INTO THE GAMEPLAYERS DATABASE (FOR DISPLAYING ON THE PLAYERLIST)
-    		$resultgameplayers = mysql_query("INSERT INTO gameplayers (GameID,UserID,JoinOrder) VALUES ('$command[1]','$command[2]','$playersingame')",$db);
+    		$resultgameplayers = $conn->query("INSERT INTO gameplayers (GameID,UserID,JoinOrder) VALUES ('$command[1]','$command[2]','$playersingame')");
     		// CUT SHORT THE FOR LOOP
     		$playersingame=$maxplayersingame;
     		// TELLS THE CLIENT TO UPDATE HIS GAMELIST
-    		$result = mysql_query("UPDATE userlist SET StartedGame=".time()." WHERE UserID='$command[2]'",$db);
+    		$result = $conn->query("UPDATE userlist SET StartedGame=".time()." WHERE UserID='$command[2]'");
 		}
 	}
 	print "SUCCESS\n";
@@ -597,9 +609,9 @@ if ($command[0]=="=JOIN_GAME") {
 
 if ($command[0]=="=LEAVE_GAME") {
 	// REMOVE THEMSELVES FROM THE GAMEPLAYERS DATABASE(AND THE GAMES PLAYERLIST)
-    $result = mysql_query("DELETE FROM gameplayers WHERE GameID='$command[1]' and UserID='$command[2]'",$db);
+    $result = $conn->query("DELETE FROM gameplayers WHERE GameID='$command[1]' and UserID='$command[2]'");
     // TELLS THE CLIENT TO UPDATE HIS GAMELIST
-    $result = mysql_query("UPDATE userlist SET StartedGame=".time()." WHERE UserID='$command[2]'",$db);
+    $result = $conn->query("UPDATE userlist SET StartedGame=".time()." WHERE UserID='$command[2]'");
     print "SUCCESS\n";
 }
 //print_r($_SERVER);
@@ -713,15 +725,15 @@ function showscores($conn){
 $ip =$_SERVER['REMOTE_ADDR'];
 
 
-	$result = mysql_query("SELECT trackname,craft,laptime,playerip,playername FROM hoverscoreslaps WHERE playerip='$ip' ORDER BY trackname AND laptime DESC");
-$num_rows = mysql_num_rows($result);
+	$result = $conn->query("SELECT trackname,craft,laptime,playerip,playername FROM hoverscoreslaps WHERE playerip='$ip' ORDER BY trackname AND laptime DESC");
+$num_rows = $result->num_rows;
 if ($num_rows < 1){
 echo "\nCHAT\nYour ip has no scores to display. You need to play HoverRace to get scores. \n";
 return;
 }
 
 
-while($row = mysql_fetch_row($result))
+while($row = $result->fetch_array())
 {
     $trackname = $row[0];
 $craft = $row[1];
